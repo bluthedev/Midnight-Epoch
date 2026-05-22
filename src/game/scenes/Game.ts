@@ -34,6 +34,14 @@ export class Game extends Scene
     alertText: Phaser.GameObjects.Text;
     globalAlertLevel: number = 0;
 
+    // Chronostasis (Time-Freeze) properties
+    chronometerCharge: number = 100;
+    chronostasisActive: boolean = false;
+    chronostasisOverlay: Phaser.GameObjects.Graphics;
+    chronometerHUD: Phaser.GameObjects.Graphics;
+    chronometerHUDText: Phaser.GameObjects.Text;
+    chronostasisTime: number = 0;
+
     constructor ()
     {
         super('Game');
@@ -186,6 +194,22 @@ export class Game extends Scene
         this.alertText.setDepth(101);
         this.alertText.setAlpha(0);
 
+        // Initialize Chronostasis VFX overlays & HUD
+        this.chronostasisOverlay = this.add.graphics();
+        this.chronostasisOverlay.setDepth(4); // Render right behind characters and vision cones
+
+        this.chronometerHUD = this.add.graphics();
+        this.chronometerHUD.setDepth(100);
+
+        this.chronometerHUDText = this.add.text(20, 20, 'CHRONOMETER CHARGE', {
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            color: '#ffd700',
+            fontStyle: 'bold'
+        });
+        this.chronometerHUDText.setDepth(101);
+        this.chronometerHUDText.setStroke('#0f1115', 2);
+
         console.log('Game Scene [create] successfully completed. State Machine:', this.stateMachine);
     }
 
@@ -309,11 +333,28 @@ export class Game extends Scene
             this.playerVisor.x = this.player.x;
         }
 
+        // --- CHRONOSTASIS (TIME-FREEZE) CHARGE LOOP ---
+        const spaceHeld = this.cursors && this.cursors.space && this.cursors.space.isDown;
+
+        if (spaceHeld && this.chronometerCharge > 0) {
+            this.chronostasisActive = true;
+            this.chronometerCharge = Math.max(0, this.chronometerCharge - 33.3 * dt); // Drains completely in 3 seconds
+        } else {
+            this.chronostasisActive = false;
+            this.chronometerCharge = Math.min(100, this.chronometerCharge + 15 * dt); // Recharges completely in ~6.6 seconds
+        }
+
+        // Advance custom clock only if time is NOT frozen
+        if (!this.chronostasisActive) {
+            this.chronostasisTime += delta;
+        }
+
         // Draw timepiece active chronometer ticks around the player's base
         this.timepieceAura.clear();
-        this.timepieceAura.lineStyle(1.5, 0xd4af37, 0.75);
+        this.timepieceAura.lineStyle(1.5, this.chronostasisActive ? 0xffb700 : 0xd4af37, 0.75);
         
-        const dialTime = this.time.now * 0.0025;
+        // Aura ticks spin much faster in Chronostasis!
+        const dialTime = this.chronostasisActive ? (this.time.now * 0.01) : (this.time.now * 0.0025);
         const radius = 24;
         const centerX = this.player.x;
         const centerY = this.player.y + 24;
@@ -333,6 +374,61 @@ export class Game extends Scene
             this.createDashGhost();
         }
 
+        // --- CHRONOSTASIS SCREEN-WIDE VISUAL OVERLAYS ---
+        this.chronostasisOverlay.clear();
+        if (this.chronostasisActive) {
+            // Translucent golden-amber full-screen overlay
+            this.chronostasisOverlay.fillStyle(0xd4af37, 0.08 + Math.sin(time * 0.005) * 0.02);
+            this.chronostasisOverlay.fillRect(0, 0, 1024, 768);
+
+            // Pulsating golden vignette border
+            const borderAlpha = 0.25 + Math.sin(time * 0.01) * 0.1;
+            this.chronostasisOverlay.lineStyle(4 + Math.sin(time * 0.01) * 2, 0xd4af37, borderAlpha);
+            this.chronostasisOverlay.strokeRect(0, 0, 1024, 768);
+
+            // Massive high-tech rotating clockwork gears drawn in the background center
+            this.chronostasisOverlay.lineStyle(1.5, 0xd4af37, 0.04);
+            this.chronostasisOverlay.strokeCircle(512, 384, 200);
+            this.chronostasisOverlay.strokeCircle(512, 384, 180);
+
+            const gearRot = time * 0.0005;
+            for (let i = 0; i < 12; i++) {
+                const angle = gearRot + (i * Math.PI / 6);
+                const sx = 512 + Math.cos(angle) * 180;
+                const sy = 384 + Math.sin(angle) * 180;
+                const ex = 512 + Math.cos(angle) * 200;
+                const ey = 384 + Math.sin(angle) * 200;
+                this.chronostasisOverlay.lineBetween(sx, sy, ex, ey);
+            }
+        }
+
+        // --- CHRONOMETER TOP-LEFT HUD BATTERY CELL ---
+        this.chronometerHUD.clear();
+        const outlineHUDColor = this.chronostasisActive ? 0xffd700 : 0xffffff;
+        const fillHUDColor = this.chronostasisActive ? 0xffb700 : 0x00f0ff; // Amber/Gold when draining, Cyan/Blue when charging
+
+        // HUD Container
+        this.chronometerHUD.fillStyle(0x0f1115, 0.75);
+        this.chronometerHUD.fillRoundedRect(20, 38, 120, 14, 4);
+
+        // HUD Border
+        this.chronometerHUD.lineStyle(1.5, outlineHUDColor, 0.25);
+        this.chronometerHUD.strokeRoundedRect(20, 38, 120, 14, 4);
+
+        // Fill Progress
+        const fillWidth = Math.round(112 * (this.chronometerCharge / 100));
+        if (fillWidth > 0) {
+            this.chronometerHUD.fillStyle(fillHUDColor, 0.9);
+            this.chronometerHUD.fillRoundedRect(24, 41, fillWidth, 8, 2);
+        }
+
+        // Draw segmented ticks separation (power cells)
+        this.chronometerHUD.lineStyle(1, 0x0f1115, 0.4);
+        for (let i = 1; i < 5; i++) {
+            const tx = 20 + 24 * i;
+            this.chronometerHUD.lineBetween(tx, 38, tx, 52);
+        }
+
         // --- CITADEL SECURITY GUARDS UPDATE LOOP ---
         let maxGuardAlert = 0;
 
@@ -347,8 +443,8 @@ export class Game extends Scene
                 guard.speed = 50; // Standard patrol speed
             }
 
-            // 2. Patrol Movement
-            if (guard.alertState !== 'alert') {
+            // 2. Patrol Movement (Disabled during active Chronostasis)
+            if (guard.alertState !== 'alert' && !this.chronostasisActive) {
                 guard.bodyRect.x += guard.direction * guard.speed * dt;
 
                 // Rebound off boundaries
@@ -364,20 +460,20 @@ export class Game extends Scene
             guard.coreRect.x = guard.bodyRect.x;
             guard.visor.x = guard.bodyRect.x + guard.direction * 6;
             
-            // 3. Vision Sweep Scanning Wedge
+            // 3. Vision Sweep Scanning Wedge (Freezes sweep angle when Chronostasis active)
             const baseAngle = guard.direction === 1 ? 0 : Math.PI;
-            const sweepWobble = Math.sin(time * 0.003) * 0.25; // slow sinus sweep
+            const sweepWobble = Math.sin(this.chronostasisTime * 0.003) * 0.25; // slow sinus sweep
             const lookAngle = baseAngle + sweepWobble;
 
             // Detection range is 250, FOV aperture is 45 degrees (+/- 22.5 deg)
             const range = 250;
             const halfFov = 0.392; // ~22.5 degrees in radians
 
-            // 4. Line-of-Sight & Player Detection Check
+            // 4. Line-of-Sight & Player Detection Check (Bypassed entirely in time-freeze!)
             const dist = Phaser.Math.Distance.Between(guard.bodyRect.x, guard.bodyRect.y, this.player.x, this.player.y);
             let playerDetected = false;
 
-            if (dist <= range) {
+            if (dist <= range && !this.chronostasisActive) {
                 const angleToPlayer = Math.atan2(this.player.y - guard.bodyRect.y, this.player.x - guard.bodyRect.x);
                 const diff = Math.abs(Phaser.Math.Angle.Normalize(angleToPlayer - lookAngle));
 
@@ -393,7 +489,7 @@ export class Game extends Scene
             // 5. Update Alert Meter
             if (playerDetected) {
                 guard.alertLevel = Math.min(100, guard.alertLevel + 45 * dt); // Full alert in ~2.2s
-            } else {
+            } else if (!this.chronostasisActive) {
                 guard.alertLevel = Math.max(0, guard.alertLevel - 20 * dt); // Fades in 5 seconds
             }
 
