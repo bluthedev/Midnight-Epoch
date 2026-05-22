@@ -47,7 +47,7 @@ export class RunState extends State {
 export class JumpState extends State {
     enter(_scene: any, player: Phaser.Physics.Arcade.Sprite) {
         if (player.body?.touching.down || player.body?.blocked.down) {
-            player.setVelocityY(-400); // Initial explosive jump force
+            player.setVelocityY(-560); // Initial explosive jump force (increased from -400 to clear platforms)
         }
     }
 
@@ -90,7 +90,7 @@ export class WallSlideState extends State {
 
     enter(scene: any, player: Phaser.Physics.Arcade.Sprite, wallSide: 'left' | 'right') {
         const bounceForceX = 400;
-        const bounceForceY = -400;
+        const bounceForceY = -500; // Increased wall jump force
         
         // Automatically change direction with high velocity away from the wall
         if (wallSide === 'left') {
