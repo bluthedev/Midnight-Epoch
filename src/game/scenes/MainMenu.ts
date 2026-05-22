@@ -12,8 +12,18 @@ export class MainMenu extends Scene
 
     create ()
     {
-        // Fade in from dark blue/grey
-        this.cameras.main.fadeIn(500, 15, 17, 21);
+        // Smooth, premium fade-in using a custom overlay rectangle (bulletproof transition)
+        const fadeOverlay = this.add.rectangle(512, 384, 1024, 768, 0x0f1115);
+        fadeOverlay.setDepth(99999);
+        this.tweens.add({
+            targets: fadeOverlay,
+            alpha: 0,
+            duration: 500,
+            ease: 'Power2',
+            onComplete: () => {
+                fadeOverlay.destroy();
+            }
+        });
 
         // Add the beautiful Citadel background, scaled to cover the 1024x768 screen
         this.background = this.add.image(512, 384, 'citadel_bg');
@@ -106,13 +116,21 @@ export class MainMenu extends Scene
 
         // Trigger scene start on click
         this.startButton.on('pointerdown', () => {
-            console.log('Initiating deployment clicked, fading out MainMenu camera...');
-            this.cameras.main.fade(250, 15, 17, 21);
+            console.log('Initiating deployment clicked, starting custom fade out...');
             
-            // Highly robust scene transition using Phaser clock timer (independent of rendering event race conditions)
-            this.time.delayedCall(250, () => {
-                console.log('Transitioning to Game scene...');
-                this.scene.start('Game');
+            const fadeOverlay = this.add.rectangle(512, 384, 1024, 768, 0x0f1115);
+            fadeOverlay.setAlpha(0);
+            fadeOverlay.setDepth(99999);
+            
+            this.tweens.add({
+                targets: fadeOverlay,
+                alpha: 1,
+                duration: 250,
+                ease: 'Power2',
+                onComplete: () => {
+                    console.log('Transitioning to Game scene...');
+                    this.scene.start('Game');
+                }
             });
         });
 

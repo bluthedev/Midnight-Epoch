@@ -48,8 +48,18 @@ export class Game extends Scene
     create ()
     {
         console.log('Game Scene [create] initialized.');
-        // Smoothly fade the game screen in from the dark transition color
-        this.cameras.main.fadeIn(500, 15, 17, 21);
+        // Smooth, premium fade-in using a custom overlay rectangle (bulletproof transition)
+        const fadeOverlay = this.add.rectangle(512, 384, 1024, 768, 0x0f1115);
+        fadeOverlay.setDepth(99999);
+        this.tweens.add({
+            targets: fadeOverlay,
+            alpha: 0,
+            duration: 500,
+            ease: 'Power2',
+            onComplete: () => {
+                fadeOverlay.destroy();
+            }
+        });
 
         this.camera = this.cameras.main;
         
