@@ -2,7 +2,7 @@ import { State } from './PlayerStateMachine';
 
 export class IdleState extends State {
     execute(scene: any, player: Phaser.Physics.Arcade.Sprite) {
-        if (Phaser.Input.Keyboard.JustDown(scene.shiftKey)) {
+        if (scene.input.keyboard && Phaser.Input.Keyboard.JustDown(scene.shiftKey)) {
             this.stateMachine.transition('dash');
             return;
         }
@@ -21,7 +21,7 @@ export class IdleState extends State {
 
 export class RunState extends State {
     execute(scene: any, player: Phaser.Physics.Arcade.Sprite) {
-        if (Phaser.Input.Keyboard.JustDown(scene.shiftKey)) {
+        if (scene.input.keyboard && Phaser.Input.Keyboard.JustDown(scene.shiftKey)) {
             this.stateMachine.transition('dash');
             return;
         }
@@ -51,7 +51,7 @@ export class JumpState extends State {
     }
 
     execute(scene: any, player: Phaser.Physics.Arcade.Sprite) {
-        if (Phaser.Input.Keyboard.JustDown(scene.shiftKey)) {
+        if (scene.input.keyboard && Phaser.Input.Keyboard.JustDown(scene.shiftKey)) {
             this.stateMachine.transition('dash');
             return;
         }

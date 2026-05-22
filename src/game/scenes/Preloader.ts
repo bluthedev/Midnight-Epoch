@@ -9,38 +9,59 @@ export class Preloader extends Scene
 
     init ()
     {
-        //  We loaded this image in our Boot Scene, so we can display it here
-        this.add.image(512, 384, 'background');
+        // Draw a premium dark radial gradient/background using Phaser Graphics
+        const bg = this.add.graphics();
+        bg.fillGradientStyle(0x0f1115, 0x0f1115, 0x07080a, 0x07080a, 1);
+        bg.fillRect(0, 0, 1024, 768);
 
-        //  A simple progress bar. This is the outline of the bar.
-        this.add.rectangle(512, 384, 468, 32).setStrokeStyle(1, 0xffffff);
+        // Elegant, high-tech grid accents in the background (brutalist sci-fi styling)
+        const grid = this.add.graphics();
+        grid.lineStyle(1, 0xd4af37, 0.08);
+        for (let x = 0; x < 1024; x += 64) {
+            grid.lineBetween(x, 0, x, 768);
+        }
+        for (let y = 0; y < 768; y += 64) {
+            grid.lineBetween(0, y, 1024, y);
+        }
 
-        //  This is the progress bar itself. It will increase in size from the left based on the % of progress.
-        const bar = this.add.rectangle(512-230, 384, 4, 28, 0xffffff);
+        // Sleek white-and-gold tech text
+        this.add.text(512, 320, 'ESTABLISHING CITADEL CONNECTION', {
+            fontFamily: '"Outfit", "Inter", sans-serif',
+            fontSize: '14px',
+            color: '#d4af37',
+            fontWeight: '800',
+            letterSpacing: 2
+        }).setOrigin(0.5);
 
-        //  Use the 'progress' event emitted by the LoaderPlugin to update the loading bar
+        // A beautiful progress bar outline (Citadel style)
+        const outline = this.add.graphics();
+        outline.lineStyle(2, 0xd4af37, 0.3);
+        outline.strokeRoundedRect(512 - 200, 360, 400, 16, 8);
+
+        // Progress bar fill
+        const bar = this.add.graphics();
+
+        // Use the 'progress' event emitted by the LoaderPlugin to update the loading bar
         this.load.on('progress', (progress: number) => {
-
-            //  Update the progress bar (our bar is 464px wide, so 100% = 464px)
-            bar.width = 4 + (460 * progress);
-
+            bar.clear();
+            bar.fillStyle(0xf5f6fa, 0.9); // Pristine white fill
+            bar.fillRoundedRect(512 - 196, 364, 392 * progress, 8, 4);
         });
     }
 
     preload ()
     {
-        //  Load the assets for the game - Replace with your own assets
+        // Load the assets for the game
         this.load.setPath('assets');
 
-        this.load.image('logo', 'logo.png');
+        this.load.image('logo', 'logo.png?v=1.0.2');
+        this.load.image('citadel_bg', 'citadel_bg.png?v=1.0.2');
     }
 
     create ()
     {
-        //  When all the assets have loaded, it's often worth creating global objects here that the rest of the game can use.
-        //  For example, you can define global animations here, so we can use them in other scenes.
-
-        //  Move to the MainMenu. You could also swap this for a Scene Transition, such as a camera fade.
+        // Move to the MainMenu scene
         this.scene.start('MainMenu');
     }
 }
+
