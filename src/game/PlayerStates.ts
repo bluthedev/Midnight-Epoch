@@ -1,13 +1,14 @@
-import { Input } from 'phaser';
 import { State } from './PlayerStateMachine';
 
+// ─── IDLE ───────────────────────────────────────────────────────────────────
 export class IdleState extends State {
     execute(scene: any, player: Phaser.Physics.Arcade.Sprite) {
-        if (scene.input.keyboard && Input.Keyboard.JustDown(scene.shiftKey)) {
+        // Double-tap dash (knife only) — flag set by Game.ts
+        if (scene.dashRequested && scene.currentWeapon === 'knife') {
+            scene.dashRequested = false;
             this.stateMachine.transition('dash');
             return;
         }
-
         if (scene.cursors.left.isDown || scene.cursors.right.isDown) {
             this.stateMachine.transition('run');
             return;
@@ -20,15 +21,17 @@ export class IdleState extends State {
     }
 }
 
+// ─── RUN ─────────────────────────────────────────────────────────────────────
 export class RunState extends State {
     execute(scene: any, player: Phaser.Physics.Arcade.Sprite) {
-        if (scene.input.keyboard && Input.Keyboard.JustDown(scene.shiftKey)) {
+        // Double-tap dash (knife only)
+        if (scene.dashRequested && scene.currentWeapon === 'knife') {
+            scene.dashRequested = false;
             this.stateMachine.transition('dash');
             return;
         }
 
         const speed = 300;
-        
         if (scene.cursors.left.isDown) {
             player.setVelocityX(-speed);
         } else if (scene.cursors.right.isDown) {
@@ -44,36 +47,36 @@ export class RunState extends State {
     }
 }
 
+// ─── JUMP ────────────────────────────────────────────────────────────────────
 export class JumpState extends State {
     enter(_scene: any, player: Phaser.Physics.Arcade.Sprite) {
         if (player.body?.touching.down || player.body?.blocked.down) {
-            player.setVelocityY(-560); // Initial explosive jump force (increased from -400 to clear platforms)
+            player.setVelocityY(-560);
         }
     }
 
     execute(scene: any, player: Phaser.Physics.Arcade.Sprite) {
-        if (scene.input.keyboard && Input.Keyboard.JustDown(scene.shiftKey)) {
+        // Double-tap dash mid-air (knife only)
+        if (scene.dashRequested && scene.currentWeapon === 'knife') {
+            scene.dashRequested = false;
             this.stateMachine.transition('dash');
             return;
         }
-        // Allow horizontal control in the air
-        const speed = 250;
+
+        const speed = 260;
         if (scene.cursors.left.isDown) {
             player.setVelocityX(-speed);
         } else if (scene.cursors.right.isDown) {
             player.setVelocityX(speed);
         }
 
-        const touchingLeft = player.body?.blocked.left;
-        const touchingRight = player.body?.blocked.right;
-
+        // Wall slide transitions
         if (!player.body?.touching.down && !player.body?.blocked.down) {
-            // FIX: Pass the side context into the state transition
-            if (touchingLeft && scene.cursors.left.isDown) {
+            if (player.body?.blocked.left && scene.cursors.left.isDown) {
                 this.stateMachine.transition('wallSlide', 'left');
                 return;
             }
-            if (touchingRight && scene.cursors.right.isDown) {
+            if (player.body?.blocked.right && scene.cursors.right.isDown) {
                 this.stateMachine.transition('wallSlide', 'right');
                 return;
             }
@@ -85,65 +88,57 @@ export class JumpState extends State {
     }
 }
 
+// ─── WALL SLIDE ──────────────────────────────────────────────────────────────
 export class WallSlideState extends State {
     private bounceTimer: number = 0;
 
     enter(scene: any, player: Phaser.Physics.Arcade.Sprite, wallSide: 'left' | 'right') {
-        const bounceForceX = 400;
-        const bounceForceY = -500; // Increased wall jump force
-        
-        // Automatically change direction with high velocity away from the wall
         if (wallSide === 'left') {
-            player.setVelocity(bounceForceX, bounceForceY);
+            player.setVelocity(400, -500);
         } else {
-            player.setVelocity(-bounceForceX, bounceForceY);
+            player.setVelocity(-400, -500);
         }
-        
-        // Record the time we bounced to create an input lockout window
         this.bounceTimer = scene.time.now;
     }
 
     execute(scene: any, player: Phaser.Physics.Arcade.Sprite) {
-        // Lock out horizontal air-control for 300ms to allow the bounce to actually happen.
-        // Without this, JumpState would immediately overwrite the bounce velocity on the next frame!
         if (scene.time.now - this.bounceTimer > 300) {
             this.stateMachine.transition('jump');
             return;
         }
-
-        // Drop off if they hit the ground during the bounce
         if (player.body?.blocked.down || player.body?.touching.down) {
             this.stateMachine.transition('idle');
-            return;
         }
     }
 }
 
+// ─── DASH ────────────────────────────────────────────────────────────────────
 export class DashState extends State {
     private dashDirection: number = 1;
     private isDashing: boolean = false;
 
     enter(scene: any, player: Phaser.Physics.Arcade.Sprite) {
         this.isDashing = true;
-        
+
         if (player.body) {
             (player.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
         }
-        
-        // Determine direction based on input
+
+        // Direction: current input wins, else last facing direction
         if (scene.cursors.left.isDown) {
             this.dashDirection = -1;
         } else if (scene.cursors.right.isDown) {
             this.dashDirection = 1;
         } else {
             const body = player.body as Phaser.Physics.Arcade.Body;
-            this.dashDirection = body && body.velocity.x < 0 ? -1 : 1;
+            this.dashDirection = (body && body.velocity.x < 0) ? -1 : 1;
         }
 
-        player.setVelocityX(800 * this.dashDirection);
+        // Knife lunge — fast and precise
+        player.setVelocityX(920 * this.dashDirection);
         player.setVelocityY(0);
 
-        scene.time.delayedCall(200, () => {
+        scene.time.delayedCall(175, () => {
             if (this.stateMachine.state === 'dash') {
                 this.isDashing = false;
                 if (player.body) {
@@ -160,7 +155,7 @@ export class DashState extends State {
 
     execute(_scene: any, player: Phaser.Physics.Arcade.Sprite) {
         if (this.isDashing) {
-            player.setVelocityX(800 * this.dashDirection);
+            player.setVelocityX(920 * this.dashDirection);
             player.setVelocityY(0);
         }
     }
