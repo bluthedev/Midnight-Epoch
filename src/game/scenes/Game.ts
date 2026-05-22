@@ -42,6 +42,16 @@ export class Game extends Scene
     chronometerHUDText: Phaser.GameObjects.Text;
     chronostasisTime: number = 0;
 
+    // Memory Core Hacking & Extraction properties
+    memoryCore: Phaser.GameObjects.Rectangle;
+    memoryCoreGraphics: Phaser.GameObjects.Graphics;
+    memoryCoreHacked: boolean = false;
+    hackingProgress: number = 0;
+    hackingText: Phaser.GameObjects.Text;
+    extractionPortal: Phaser.GameObjects.Graphics;
+    extractionActive: boolean = false;
+    sKey: Phaser.Input.Keyboard.Key;
+
     constructor ()
     {
         super('Game');
@@ -147,6 +157,7 @@ export class Game extends Scene
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
             this.shiftKey = this.input.keyboard.addKey(Input.Keyboard.KeyCodes.SHIFT);
+            this.sKey = this.input.keyboard.addKey(Input.Keyboard.KeyCodes.S);
         } else {
             const mockKey = { isDown: false };
             this.cursors = {
@@ -158,6 +169,7 @@ export class Game extends Scene
                 shift: mockKey
             } as any;
             this.shiftKey = mockKey as any;
+            this.sKey = mockKey as any;
         }
 
         // Initialize state machine
@@ -209,6 +221,31 @@ export class Game extends Scene
         });
         this.chronometerHUDText.setDepth(101);
         this.chronometerHUDText.setStroke('#0f1115', 2);
+
+        // Initialize Memory Core Hacking Core (Pristine gold-and-white Horological relic)
+        this.memoryCore = this.add.rectangle(512, 325, 24, 30, 0xd4af37, 0.4);
+        this.memoryCore.setStrokeStyle(2, 0xffffff);
+        this.memoryCore.setDepth(6);
+
+        this.memoryCoreGraphics = this.add.graphics();
+        this.memoryCoreGraphics.setDepth(7);
+
+        this.hackingText = this.add.text(512, 280, '[S] HACK MEMORY CORE', {
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            color: '#ffd700',
+            fontStyle: 'bold',
+            backgroundColor: '#0f1115e6',
+            padding: { x: 8, y: 4 }
+        });
+        this.hackingText.setOrigin(0.5);
+        this.hackingText.setStroke('#0f1115', 2);
+        this.hackingText.setDepth(10);
+        this.hackingText.setAlpha(0);
+
+        // Initialize Extraction Portal Graphics
+        this.extractionPortal = this.add.graphics();
+        this.extractionPortal.setDepth(5); // Render behind player but in front of platforms
 
         console.log('Game Scene [create] successfully completed. State Machine:', this.stateMachine);
     }
@@ -591,5 +628,189 @@ export class Game extends Scene
         } else {
             this.alertText.setAlpha(0);
         }
+
+        // --- CITADEL MEMORY CORE HACKING SYSTEM ---
+        const distToCore = Phaser.Math.Distance.Between(this.player.x, this.player.y, 512, 325);
+        this.memoryCoreGraphics.clear();
+        
+        if (!this.memoryCoreHacked) {
+            // Draw base glowing rotating rings around memory core
+            this.memoryCoreGraphics.lineStyle(1.5, 0xd4af37, 0.4 + Math.sin(time * 0.005) * 0.1);
+            this.memoryCoreGraphics.strokeCircle(512, 325, 25);
+            this.memoryCoreGraphics.strokeCircle(512, 325, 20);
+            
+            const coreGearRot = time * 0.002;
+            for (let i = 0; i < 6; i++) {
+                const angle = coreGearRot + (i * Math.PI / 3);
+                const sx = 512 + Math.cos(angle) * 20;
+                const sy = 325 + Math.sin(angle) * 20;
+                const ex = 512 + Math.cos(angle) * 25;
+                const ey = 325 + Math.sin(angle) * 25;
+                this.memoryCoreGraphics.lineBetween(sx, sy, ex, ey);
+            }
+            
+            // Proximity interaction bounds
+            if (distToCore < 50) {
+                this.hackingText.setAlpha(1);
+                const downHeld = this.cursors && this.cursors.down && this.cursors.down.isDown;
+                const sHeld = this.sKey && this.sKey.isDown;
+                
+                if (downHeld || sHeld) {
+                    this.hackingProgress = Math.min(100, this.hackingProgress + 33.3 * dt); // Takes exactly 3 seconds
+                    
+                    // Render beautiful progress arc ring around the core
+                    const radius = 35;
+                    this.memoryCoreGraphics.lineStyle(3, 0xffd700, 0.95);
+                    this.memoryCoreGraphics.beginPath();
+                    const startAngle = -Math.PI / 2;
+                    const endAngle = startAngle + (Math.PI * 2 * (this.hackingProgress / 100));
+                    this.memoryCoreGraphics.arc(512, 325, radius, startAngle, endAngle);
+                    this.memoryCoreGraphics.strokePath();
+                    
+                    this.hackingText.setText(`HACKING CORE: ${Math.round(this.hackingProgress)}%`);
+                    this.hackingText.setColor('#ffffff');
+                    this.hackingText.setBackgroundColor('#d4af37cc');
+                } else {
+                    this.hackingProgress = Math.max(0, this.hackingProgress - 50 * dt);
+                    this.hackingText.setText('[S] or [DOWN] TO HACK');
+                    this.hackingText.setColor('#ffd700');
+                    this.hackingText.setBackgroundColor('#0f1115e6');
+                }
+                
+                if (this.hackingProgress >= 100) {
+                    this.memoryCoreHacked = true;
+                    this.memoryCore.setAlpha(0); // Base crystal core disappears
+                    this.extractionActive = true;
+                    this.hackingText.setAlpha(0);
+                    
+                    // Golden flash VFX burst
+                    const flash = this.add.graphics();
+                    flash.setDepth(9999);
+                    flash.fillStyle(0xffd700, 0.85);
+                    flash.fillCircle(512, 325, 50);
+                    this.tweens.add({
+                         targets: flash,
+                         alpha: 0,
+                         scaleX: 2.5,
+                         scaleY: 2.5,
+                         x: 512 * -1.5,
+                         y: 325 * -1.5,
+                         duration: 400,
+                         onComplete: () => { flash.destroy(); }
+                    });
+                }
+            } else {
+                this.hackingProgress = Math.max(0, this.hackingProgress - 50 * dt);
+                this.hackingText.setAlpha(0);
+            }
+        }
+
+        // --- CITADEL EXTRACTION PORTAL LOOP ---
+        this.extractionPortal.clear();
+        if (this.extractionActive) {
+            const portalX = 180;
+            const portalY = 650;
+            const portalWidth = 40;
+            const portalHeight = 70;
+            
+            // Holographic golden portal base ellipse
+            this.extractionPortal.fillStyle(0xd4af37, 0.15 + Math.sin(time * 0.01) * 0.05);
+            this.extractionPortal.fillEllipse(portalX, portalY, portalWidth, portalHeight);
+            
+            this.extractionPortal.lineStyle(2, 0xffffff, 0.75 + Math.sin(time * 0.02) * 0.15);
+            this.extractionPortal.strokeEllipse(portalX, portalY, portalWidth, portalHeight);
+            
+            // Animate rising gold line particles
+            this.extractionPortal.lineStyle(1.5, 0xd4af37, 0.6);
+            for (let i = 0; i < 5; i++) {
+                const tOffset = (time * 0.06 + i * 20) % portalHeight;
+                const px = portalX + Math.sin(time * 0.01 + i) * 12;
+                const py = portalY + (portalHeight / 2) - tOffset;
+                this.extractionPortal.lineBetween(px, py, px, py - 6);
+            }
+            
+            // Draw floating interactive portal tooltip
+            if (!this.sys.registry.has('portal_text')) {
+                const pText = this.add.text(portalX, portalY - 55, 'EXTRACTION PORTAL ACTIVE', {
+                    fontFamily: 'monospace',
+                    fontSize: '11px',
+                    color: '#ffffff',
+                    fontStyle: 'bold',
+                    backgroundColor: '#0f1115e6',
+                    padding: { x: 6, y: 3 }
+                }).setOrigin(0.5).setDepth(10).setStroke('#0f1115', 2);
+                this.sys.registry.set('portal_text', pText);
+                
+                this.tweens.add({
+                    targets: pText,
+                    y: portalY - 60,
+                    duration: 1000,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.easeInOut'
+                });
+            }
+            
+            // Escape portal boundary intersection
+            const distToPortal = Phaser.Math.Distance.Between(this.player.x, this.player.y, portalX, portalY);
+            if (distToPortal < 30) {
+                this.player.setVelocity(0, 0);
+                if (this.player.body) {
+                    (this.player.body as Phaser.Physics.Arcade.Body).setEnable(false);
+                }
+                
+                const winOverlay = this.add.rectangle(512, 384, 1024, 768, 0x0f1115);
+                winOverlay.setDepth(99999);
+                winOverlay.setAlpha(0);
+                
+                this.tweens.add({
+                    targets: winOverlay,
+                    alpha: 1,
+                    duration: 600,
+                    onComplete: () => {
+                        if (this.sys.registry.has('portal_text')) {
+                            const pText = this.sys.registry.get('portal_text');
+                            pText.destroy();
+                            this.sys.registry.remove('portal_text');
+                        }
+                        this.scene.start('GameOver', { status: 'victory', charge: this.chronometerCharge, alerts: this.globalAlertLevel });
+                    }
+                });
+            }
+        }
+
+        // --- Patrolling Guard Collision & Capture Triggers ---
+        this.guards.forEach((guard) => {
+            if (guard.alertState === 'alert') {
+                const playerBounds = this.playerRect.getBounds();
+                const guardBounds = guard.bodyRect.getBounds();
+                
+                if (Phaser.Geom.Intersects.RectangleToRectangle(playerBounds, guardBounds)) {
+                    this.player.setVelocity(0, 0);
+                    if (this.player.body) {
+                        (this.player.body as Phaser.Physics.Arcade.Body).setEnable(false);
+                    }
+                    
+                    const failOverlay = this.add.rectangle(512, 384, 1024, 768, 0xff3333, 0.45);
+                    failOverlay.setDepth(99999);
+                    
+                    this.tweens.add({
+                        targets: failOverlay,
+                        alpha: 1,
+                        duration: 300,
+                        onComplete: () => {
+                            if (this.sys.registry.has('portal_text')) {
+                                const pText = this.sys.registry.get('portal_text');
+                                pText.destroy();
+                                this.sys.registry.remove('portal_text');
+                            }
+                            failOverlay.destroy();
+                            this.scene.start('GameOver', { status: 'defeat' });
+                        }
+                    });
+                }
+            }
+        });
     }
 }
+
