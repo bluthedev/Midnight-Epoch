@@ -5,7 +5,8 @@ import { IdleState, RunState, JumpState, WallSlideState, DashState } from '../Pl
 export class Game extends Scene
 {
     camera: Phaser.Cameras.Scene2D.Camera;
-    player: any;
+    player: Phaser.Physics.Arcade.Sprite;
+    playerRect: Phaser.GameObjects.Rectangle;
     playerVisor: Phaser.GameObjects.Rectangle;
     timepieceAura: Phaser.GameObjects.Graphics;
     platforms: Phaser.Physics.Arcade.StaticGroup;
@@ -25,10 +26,10 @@ export class Game extends Scene
         rect.setStrokeStyle(1.5, 0xe2e8f0);
         
         // Glowing gold trim on the top ledge
-        const goldTrim = this.add.rectangle(x, y - (height / 2) + 2, width, 4, 0xd4af37);
+        this.add.rectangle(x, y - (height / 2) + 2, width, 4, 0xd4af37);
         
         // Deep obsidian accent on the bottom base
-        const bottomTrim = this.add.rectangle(x, y + (height / 2) - 2, width, 4, 0x1a1d24);
+        this.add.rectangle(x, y + (height / 2) - 2, width, 4, 0x1a1d24);
 
         this.physics.add.existing(rect, true);
         this.platforms.add(rect);
@@ -69,31 +70,23 @@ export class Game extends Scene
         // Right Wall
         this.createCitadelPlatform(874, 400, 40, 500);
 
-        // Create the player as a sleek Citadel-themed operative
-        const playerRect = this.add.rectangle(512, 500, 32, 48, 0xf5f6fa);
-        playerRect.setStrokeStyle(2.5, 0xd4af37); // Gold border
-        this.physics.add.existing(playerRect);
+        // Create the player as a standard physics sprite (invisible)
+        this.player = this.physics.add.sprite(512, 500, 'logo');
+        this.player.setAlpha(0); // Fully transparent
+        this.player.setDisplaySize(32, 48); // Set dimensions
         
-        // Phaser Rectangle doesn't have Sprite methods, so we inject them to satisfy the States logic
-        this.player = playerRect as any;
-        this.player.setVelocityX = (v: number) => { this.player.body.velocity.x = v; };
-        this.player.setVelocityY = (v: number) => { this.player.body.velocity.y = v; };
-        this.player.setVelocity = (x: number, y: number) => {
-            this.player.body.velocity.x = x;
-            this.player.body.velocity.y = y;
-        };
-        this.player.setFlipX = (v: boolean) => { /* Rectangles don't support flipX */ };
-        this.player.setFriction = (x: number, y: number) => { this.player.body.friction.set(x, y); };
-        this.player.setDrag = (x: number, y: number) => { this.player.body.drag.set(x, y); };
-
-        // Zero out friction and drag on player
         this.player.setFriction(0, 0);
         this.player.setDrag(0, 0);
 
+        // Sleek Citadel-themed visual representation that tracks the physics body
+        this.playerRect = this.add.rectangle(512, 500, 32, 48, 0xf5f6fa);
+        this.playerRect.setStrokeStyle(2.5, 0xd4af37); // Gold border
+
         // Zero out friction on all static platform bodies
         this.platforms.getChildren().forEach((child: any) => {
-            if (child.body && child.body.friction) {
-                child.body.friction.set(0, 0);
+            const body = child.body as Phaser.Physics.Arcade.StaticBody;
+            if (body && body.friction) {
+                body.friction.set(0, 0);
             }
         });
         
@@ -158,11 +151,17 @@ export class Game extends Scene
         // Update loop purely drives the state machine
         this.stateMachine.step();
 
+        // Have the visual player rectangle follow the physics body
+        this.playerRect.x = this.player.x;
+        this.playerRect.y = this.player.y;
+
+        const body = this.player.body as Phaser.Physics.Arcade.Body;
+
         // Dynamic visor offsets based on velocity direction
         this.playerVisor.y = this.player.y - 12;
-        if (this.player.body.velocity.x > 10) {
+        if (body && body.velocity.x > 10) {
             this.playerVisor.x = this.player.x + 5;
-        } else if (this.player.body.velocity.x < -10) {
+        } else if (body && body.velocity.x < -10) {
             this.playerVisor.x = this.player.x - 5;
         } else {
             this.playerVisor.x = this.player.x;

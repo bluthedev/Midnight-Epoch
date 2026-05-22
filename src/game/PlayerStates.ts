@@ -44,7 +44,7 @@ export class RunState extends State {
 }
 
 export class JumpState extends State {
-    enter(scene: any, player: Phaser.Physics.Arcade.Sprite) {
+    enter(_scene: any, player: Phaser.Physics.Arcade.Sprite) {
         if (player.body?.touching.down || player.body?.blocked.down) {
             player.setVelocityY(-400); // Initial explosive jump force
         }
@@ -124,7 +124,10 @@ export class DashState extends State {
 
     enter(scene: any, player: Phaser.Physics.Arcade.Sprite) {
         this.isDashing = true;
-        player.body.allowGravity = false;
+        
+        if (player.body) {
+            (player.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+        }
         
         // Determine direction based on input
         if (scene.cursors.left.isDown) {
@@ -132,7 +135,8 @@ export class DashState extends State {
         } else if (scene.cursors.right.isDown) {
             this.dashDirection = 1;
         } else {
-            this.dashDirection = player.body.velocity.x < 0 ? -1 : 1;
+            const body = player.body as Phaser.Physics.Arcade.Body;
+            this.dashDirection = body && body.velocity.x < 0 ? -1 : 1;
         }
 
         player.setVelocityX(800 * this.dashDirection);
@@ -141,7 +145,9 @@ export class DashState extends State {
         scene.time.delayedCall(200, () => {
             if (this.stateMachine.state === 'dash') {
                 this.isDashing = false;
-                player.body.allowGravity = true;
+                if (player.body) {
+                    (player.body as Phaser.Physics.Arcade.Body).setAllowGravity(true);
+                }
                 if (player.body?.touching.down || player.body?.blocked.down) {
                     this.stateMachine.transition('idle');
                 } else {
@@ -151,7 +157,7 @@ export class DashState extends State {
         });
     }
 
-    execute(scene: any, player: Phaser.Physics.Arcade.Sprite) {
+    execute(_scene: any, player: Phaser.Physics.Arcade.Sprite) {
         if (this.isDashing) {
             player.setVelocityX(800 * this.dashDirection);
             player.setVelocityY(0);

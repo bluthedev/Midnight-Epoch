@@ -25,22 +25,22 @@ export class MainMenu extends Scene
         vignette.fillRect(0, 0, 1024, 768);
 
         // Sleek, futuristic white-and-gold Citadel Title
-        const titleText = this.add.text(512, 260, 'MIDNIGHT EPOCH', {
+        this.add.text(512, 260, 'MIDNIGHT EPOCH', {
             fontFamily: '"Outfit", "Inter", "Arial Black", sans-serif',
             fontSize: '68px',
             color: '#f5f6fa',
-            fontWeight: '900',
+            fontStyle: 'bold',
             letterSpacing: 8,
             stroke: '#d4af37',
             strokeThickness: 2
         }).setOrigin(0.5);
 
         // Add a premium subtitle under the title
-        const subtitleText = this.add.text(512, 320, 'CITADEL EXPEDITION OVERWATCH', {
+        this.add.text(512, 320, 'CITADEL EXPEDITION OVERWATCH', {
             fontFamily: '"Inter", sans-serif',
             fontSize: '14px',
             color: '#d4af37',
-            fontWeight: '800',
+            fontStyle: 'bold',
             letterSpacing: 4
         }).setOrigin(0.5);
 
@@ -60,7 +60,7 @@ export class MainMenu extends Scene
             fontFamily: '"Outfit", "Inter", "Arial", sans-serif',
             fontSize: '18px',
             color: '#ffffff',
-            fontWeight: '900',
+            fontStyle: 'bold',
             stroke: '#d4af37',
             strokeThickness: 1
         }).setOrigin(0.5);
@@ -121,7 +121,7 @@ export class MainMenu extends Scene
             fontFamily: '"Inter", sans-serif',
             fontSize: '11px',
             color: '#a0aec0',
-            fontWeight: '600',
+            fontStyle: 'bold',
             letterSpacing: 2
         }).setOrigin(0.5).setAlpha(0.7);
     }

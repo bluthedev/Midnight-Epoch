@@ -32,6 +32,6 @@ export class StateMachine {
 
 export class State {
     public stateMachine!: StateMachine;
-    enter(...args: any[]) {}
-    execute(...args: any[]) {}
+    enter(..._args: any[]) {}
+    execute(..._args: any[]) {}
 }

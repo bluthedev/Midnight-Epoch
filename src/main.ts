@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Initialize TON Connect UI overlay
-    const tonConnectUI = new TonConnectUI({
+    new TonConnectUI({
         manifestUrl: window.location.origin + '/tonconnect-manifest.json',
         buttonRootId: 'ton-connect-button'
     });

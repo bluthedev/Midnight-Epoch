@@ -29,7 +29,7 @@ export class Preloader extends Scene
             fontFamily: '"Outfit", "Inter", sans-serif',
             fontSize: '14px',
             color: '#d4af37',
-            fontWeight: '800',
+            fontStyle: 'bold',
             letterSpacing: 2
         }).setOrigin(0.5);
 
