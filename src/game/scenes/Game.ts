@@ -2,6 +2,20 @@ import { Scene, Input } from 'phaser';
 import { StateMachine } from '../PlayerStateMachine';
 import { IdleState, RunState, JumpState, WallSlideState, DashState } from '../PlayerStates';
 
+interface CitadelGuard {
+    bodyRect: Phaser.GameObjects.Rectangle;
+    coreRect: Phaser.GameObjects.Rectangle;
+    visor: Phaser.GameObjects.Rectangle;
+    visionGraphics: Phaser.GameObjects.Graphics;
+    platform: Phaser.GameObjects.Rectangle;
+    direction: number; // 1 = right, -1 = left
+    speed: number;
+    alertState: 'patrol' | 'suspicious' | 'alert';
+    alertLevel: number; // 0 to 100
+    startX: number;
+    endX: number;
+}
+
 export class Game extends Scene
 {
     camera: Phaser.Cameras.Scene2D.Camera;
@@ -13,6 +27,12 @@ export class Game extends Scene
     cursors: Phaser.Types.Input.Keyboard.CursorKeys;
     shiftKey: Phaser.Input.Keyboard.Key;
     stateMachine: StateMachine;
+    
+    // Citadel Security Guards AI properties
+    guards: CitadelGuard[] = [];
+    alertUI: Phaser.GameObjects.Graphics;
+    alertText: Phaser.GameObjects.Text;
+    globalAlertLevel: number = 0;
 
     constructor ()
     {
@@ -80,6 +100,11 @@ export class Game extends Scene
         // Right Wall
         this.createCitadelPlatform(874, 400, 40, 500);
 
+        // Floating Platforms (Stealth Patrol Zones)
+        const pLeft = this.createCitadelPlatform(320, 520, 200, 30);
+        const pRight = this.createCitadelPlatform(704, 520, 200, 30);
+        const pCenter = this.createCitadelPlatform(512, 360, 300, 30);
+
         // Create the player as a standard physics sprite (invisible)
         this.player = this.physics.add.sprite(512, 500, 'logo');
         this.player.setAlpha(0); // Fully transparent
@@ -135,6 +160,32 @@ export class Game extends Scene
             wallSlide: new WallSlideState(),
             dash: new DashState()
         }, [this, this.player]);
+
+        // Spawn guards on floating platforms
+        this.guards = [
+            this.createGuard(pLeft),
+            this.createGuard(pRight),
+            this.createGuard(pCenter)
+        ];
+
+        // Initialize Alert UI
+        this.alertUI = this.add.graphics();
+        this.alertUI.setDepth(100);
+
+        this.alertText = this.add.text(512, 120, 'CITADEL SECURITY COMPROMISED - INTRUDER SENSORS ACTIVE', {
+            fontFamily: 'monospace',
+            fontSize: '18px',
+            color: '#ff3333',
+            fontStyle: 'bold',
+            backgroundColor: '#0f1115e6',
+            padding: { x: 16, y: 8 },
+            align: 'center'
+        });
+        this.alertText.setOrigin(0.5);
+        this.alertText.setStroke('#1a1d24', 4);
+        this.alertText.setDepth(101);
+        this.alertText.setAlpha(0);
+
         console.log('Game Scene [create] successfully completed. State Machine:', this.stateMachine);
     }
 
@@ -156,10 +207,91 @@ export class Game extends Scene
         });
     }
 
-    update()
+    createGuard(platform: Phaser.GameObjects.Rectangle): CitadelGuard
+    {
+        const guardHeight = 36;
+        const guardWidth = 24;
+        const guardY = platform.y - 15 - (guardHeight / 2); // rest guard bottom on platform top
+        const guardX = platform.x;
+
+        // pristine white body
+        const bodyRect = this.add.rectangle(guardX, guardY, guardWidth, guardHeight, 0xf5f6fa);
+        bodyRect.setStrokeStyle(1.5, 0xd4af37); // Gold trim
+        bodyRect.setDepth(10);
+
+        // carbon/obsidian core
+        const coreRect = this.add.rectangle(guardX, guardY, 10, 18, 0x1a1d24);
+        coreRect.setDepth(11);
+
+        // dynamic status visor
+        const visor = this.add.rectangle(guardX + 6, guardY - 8, 12, 4, 0x00f0ff);
+        visor.setStrokeStyle(0.5, 0xffffff);
+        visor.setDepth(12);
+
+        // vision cone graphics
+        const visionGraphics = this.add.graphics();
+        visionGraphics.setDepth(5); // Render behind player and guards
+
+        const direction = Math.random() > 0.5 ? 1 : -1;
+
+        return {
+            bodyRect,
+            coreRect,
+            visor,
+            visionGraphics,
+            platform,
+            direction,
+            speed: 50,
+            alertState: 'patrol',
+            alertLevel: 0,
+            startX: platform.x - platform.width / 2 + 20,
+            endX: platform.x + platform.width / 2 - 20
+        };
+    }
+
+    private lineIntersectsLine(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, x4: number, y4: number): boolean
+    {
+        const den = (x4 - x3) * (y2 - y1) - (y4 - y3) * (x2 - x1);
+        if (den === 0) return false;
+        const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / den;
+        const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / den;
+        return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
+    }
+
+    private lineIntersectsRect(x1: number, y1: number, x2: number, y2: number, rect: Phaser.GameObjects.Rectangle): boolean
+    {
+        const halfWidth = rect.width / 2;
+        const halfHeight = rect.height / 2;
+        const left = rect.x - halfWidth;
+        const right = rect.x + halfWidth;
+        const top = rect.y - halfHeight;
+        const bottom = rect.y + halfHeight;
+
+        // Check intersection with all 4 edges of the platform
+        return this.lineIntersectsLine(x1, y1, x2, y2, left, top, right, top) || // Top edge
+               this.lineIntersectsLine(x1, y1, x2, y2, left, bottom, right, bottom) || // Bottom edge
+               this.lineIntersectsLine(x1, y1, x2, y2, left, top, left, bottom) || // Left edge
+               this.lineIntersectsLine(x1, y1, x2, y2, right, top, right, bottom);   // Right edge
+    }
+
+    private hasLineOfSight(startX: number, startY: number, endX: number, endY: number): boolean
+    {
+        let blocked = false;
+        this.platforms.getChildren().forEach((platformChild: any) => {
+            const platform = platformChild as Phaser.GameObjects.Rectangle;
+            if (this.lineIntersectsRect(startX, startY, endX, endY, platform)) {
+                blocked = true;
+            }
+        });
+        return !blocked;
+    }
+
+    update(time: number, delta: number)
     {
         // Update loop purely drives the state machine
         this.stateMachine.step();
+
+        const dt = delta ? delta / 1000 : 0.016;
 
         // Have the visual player rectangle follow the physics body
         this.playerRect.x = this.player.x;
@@ -181,14 +313,14 @@ export class Game extends Scene
         this.timepieceAura.clear();
         this.timepieceAura.lineStyle(1.5, 0xd4af37, 0.75);
         
-        const time = this.time.now * 0.0025;
+        const dialTime = this.time.now * 0.0025;
         const radius = 24;
         const centerX = this.player.x;
         const centerY = this.player.y + 24;
         
         // Render 8 rotating dials around the feet
         for (let i = 0; i < 8; i++) {
-            const angle = time + (i * Math.PI / 4);
+            const angle = dialTime + (i * Math.PI / 4);
             const startX = centerX + Math.cos(angle) * (radius - 5);
             const startY = centerY + Math.sin(angle) * (radius - 5);
             const endX = centerX + Math.cos(angle) * radius;
@@ -199,6 +331,169 @@ export class Game extends Scene
         // Generate glowing speed trails during active Dash
         if (this.stateMachine.state === 'dash') {
             this.createDashGhost();
+        }
+
+        // --- CITADEL SECURITY GUARDS UPDATE LOOP ---
+        let maxGuardAlert = 0;
+
+        this.guards.forEach((guard) => {
+            // 1. Alert State Adjustments & Speed
+            if (guard.alertState === 'alert') {
+                guard.speed = 0;
+                guard.direction = this.player.x > guard.bodyRect.x ? 1 : -1;
+            } else if (guard.alertState === 'suspicious') {
+                guard.speed = 25; // Slower patrol when suspicious
+            } else {
+                guard.speed = 50; // Standard patrol speed
+            }
+
+            // 2. Patrol Movement
+            if (guard.alertState !== 'alert') {
+                guard.bodyRect.x += guard.direction * guard.speed * dt;
+
+                // Rebound off boundaries
+                if (guard.bodyRect.x <= guard.startX && guard.direction === -1) {
+                    guard.direction = 1;
+                } else if (guard.bodyRect.x >= guard.endX && guard.direction === 1) {
+                    guard.direction = -1;
+                }
+            }
+
+            // Clamp and update core + visor
+            guard.bodyRect.x = Phaser.Math.Clamp(guard.bodyRect.x, guard.startX, guard.endX);
+            guard.coreRect.x = guard.bodyRect.x;
+            guard.visor.x = guard.bodyRect.x + guard.direction * 6;
+            
+            // 3. Vision Sweep Scanning Wedge
+            const baseAngle = guard.direction === 1 ? 0 : Math.PI;
+            const sweepWobble = Math.sin(time * 0.003) * 0.25; // slow sinus sweep
+            const lookAngle = baseAngle + sweepWobble;
+
+            // Detection range is 250, FOV aperture is 45 degrees (+/- 22.5 deg)
+            const range = 250;
+            const halfFov = 0.392; // ~22.5 degrees in radians
+
+            // 4. Line-of-Sight & Player Detection Check
+            const dist = Phaser.Math.Distance.Between(guard.bodyRect.x, guard.bodyRect.y, this.player.x, this.player.y);
+            let playerDetected = false;
+
+            if (dist <= range) {
+                const angleToPlayer = Math.atan2(this.player.y - guard.bodyRect.y, this.player.x - guard.bodyRect.x);
+                const diff = Math.abs(Phaser.Math.Angle.Normalize(angleToPlayer - lookAngle));
+
+                if (diff <= halfFov) {
+                    // Raycast check to verify if solid platforms obscure vision
+                    const hasLos = this.hasLineOfSight(guard.bodyRect.x, guard.bodyRect.y, this.player.x, this.player.y);
+                    if (hasLos) {
+                        playerDetected = true;
+                    }
+                }
+            }
+
+            // 5. Update Alert Meter
+            if (playerDetected) {
+                guard.alertLevel = Math.min(100, guard.alertLevel + 45 * dt); // Full alert in ~2.2s
+            } else {
+                guard.alertLevel = Math.max(0, guard.alertLevel - 20 * dt); // Fades in 5 seconds
+            }
+
+            // Set alert state threshold boundaries
+            let visorColor = 0x00f0ff; // Cyan (Patrol)
+            let coneColor = 0x00f0ff;
+            let coneAlpha = 0.15;
+
+            if (guard.alertLevel >= 100) {
+                guard.alertState = 'alert';
+                visorColor = 0xff3333; // Red
+                coneColor = 0xff3333;
+                // Flashing red cone when fully alerted
+                coneAlpha = 0.3 + Math.sin(time * 0.02) * 0.15;
+            } else if (guard.alertLevel > 0) {
+                guard.alertState = 'suspicious';
+                visorColor = 0xffd700; // Gold/Yellow
+                coneColor = 0xffd700;
+                coneAlpha = 0.2 + (guard.alertLevel / 100) * 0.15; // grows denser as alert levels rise
+            } else {
+                guard.alertState = 'patrol';
+            }
+
+            guard.visor.setFillStyle(visorColor);
+
+            // 6. Draw Translucent Vision Graphics
+            guard.visionGraphics.clear();
+            
+            // Draw vision cone wedge
+            guard.visionGraphics.fillStyle(coneColor, coneAlpha);
+            guard.visionGraphics.beginPath();
+            guard.visionGraphics.moveTo(guard.bodyRect.x, guard.bodyRect.y);
+            guard.visionGraphics.arc(guard.bodyRect.x, guard.bodyRect.y, range, lookAngle - halfFov, lookAngle + halfFov);
+            guard.visionGraphics.closePath();
+            guard.visionGraphics.fillPath();
+
+            // Draw a subtle outer arc line for high-tech premium aesthetics
+            guard.visionGraphics.lineStyle(1.5, coneColor, coneAlpha * 1.5);
+            guard.visionGraphics.beginPath();
+            guard.visionGraphics.arc(guard.bodyRect.x, guard.bodyRect.y, range, lookAngle - halfFov, lookAngle + halfFov);
+            guard.visionGraphics.strokePath();
+
+            // Track highest alert level among all guards for global HUD
+            if (guard.alertLevel > maxGuardAlert) {
+                maxGuardAlert = guard.alertLevel;
+            }
+        });
+
+        this.globalAlertLevel = maxGuardAlert;
+
+        // --- GLOBAL ALERT HUD & SCREEN OVERLAYS ---
+        this.alertUI.clear();
+
+        if (this.globalAlertLevel > 0) {
+            const meterX = this.player.x;
+            const meterY = this.player.y - 45;
+
+            // Draw Glassmorphic Container
+            this.alertUI.fillStyle(0x0f1115, 0.75);
+            this.alertUI.fillRoundedRect(meterX - 22, meterY - 4, 44, 8, 3);
+            
+            // Container thin gold/red trim
+            const outlineColor = this.globalAlertLevel >= 100 ? 0xff3333 : 0xd4af37;
+            this.alertUI.lineStyle(1, outlineColor, 0.4);
+            this.alertUI.strokeRoundedRect(meterX - 22, meterY - 4, 44, 8, 3);
+
+            // Draw Segmented Alert Level Progress Bar
+            const barWidth = Math.round(40 * (this.globalAlertLevel / 100));
+            const fillColor = this.globalAlertLevel >= 100 ? 0xff3333 : 0xffd700;
+            this.alertUI.fillStyle(fillColor, 0.95);
+            this.alertUI.fillRoundedRect(meterX - 20, meterY - 2, barWidth, 4, 2);
+
+            // High-Tech Holographic Floating Warning Indicator [!]
+            this.alertUI.fillStyle(fillColor, 0.7 + Math.sin(time * 0.01) * 0.2);
+            // Floating diamond/triangle math coordinates
+            const glowY = meterY - 14 + Math.sin(time * 0.005) * 2;
+            
+            this.alertUI.beginPath();
+            this.alertUI.moveTo(meterX, glowY - 6);
+            this.alertUI.lineTo(meterX + 5, glowY);
+            this.alertUI.lineTo(meterX, glowY + 6);
+            this.alertUI.lineTo(meterX - 5, glowY);
+            this.alertUI.closePath();
+            this.alertUI.fillPath();
+
+            // Flashing global vignette at 100% alert
+            if (this.globalAlertLevel >= 100) {
+                // Red glowing border
+                const flashWeight = 4 + Math.sin(time * 0.01) * 2;
+                const flashAlpha = 0.35 + Math.sin(time * 0.01) * 0.15;
+                this.alertUI.lineStyle(flashWeight, 0xff3333, flashAlpha);
+                this.alertUI.strokeRect(0, 0, 1024, 768);
+
+                // Make warning text visible
+                this.alertText.setAlpha(0.6 + Math.sin(time * 0.015) * 0.4);
+            } else {
+                this.alertText.setAlpha(0);
+            }
+        } else {
+            this.alertText.setAlpha(0);
         }
     }
 }
