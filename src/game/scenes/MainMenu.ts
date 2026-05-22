@@ -106,8 +106,12 @@ export class MainMenu extends Scene
 
         // Trigger scene start on click
         this.startButton.on('pointerdown', () => {
-            this.cameras.main.fade(500, 15, 17, 21);
-            this.cameras.main.once('camerafadeoutcomplete', () => {
+            console.log('Initiating deployment clicked, fading out MainMenu camera...');
+            this.cameras.main.fade(250, 15, 17, 21);
+            
+            // Highly robust scene transition using Phaser clock timer (independent of rendering event race conditions)
+            this.time.delayedCall(250, () => {
+                console.log('Transitioning to Game scene...');
                 this.scene.start('Game');
             });
         });
@@ -122,4 +126,5 @@ export class MainMenu extends Scene
         }).setOrigin(0.5).setAlpha(0.7);
     }
 }
+
 

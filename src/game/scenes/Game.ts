@@ -46,6 +46,7 @@ export class Game extends Scene
 
     create ()
     {
+        console.log('Game Scene [create] initialized.');
         // Smoothly fade the game screen in from the dark transition color
         this.cameras.main.fadeIn(500, 15, 17, 21);
 
@@ -131,6 +132,7 @@ export class Game extends Scene
             wallSlide: new WallSlideState(),
             dash: new DashState()
         }, [this, this.player]);
+        console.log('Game Scene [create] successfully completed. State Machine:', this.stateMachine);
     }
 
     createDashGhost()
