@@ -84,7 +84,7 @@ export class Game extends Scene
 
         // Zero out friction on all static platform bodies
         this.platforms.getChildren().forEach((child: any) => {
-            const body = child.body as Phaser.Physics.Arcade.StaticBody;
+            const body = child.body as any;
             if (body && body.friction) {
                 body.friction.set(0, 0);
             }
