@@ -1,3 +1,4 @@
+import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import { StateMachine } from '../PlayerStateMachine';
 import { IdleState, RunState, JumpState, WallSlideState, DashState } from '../PlayerStates';

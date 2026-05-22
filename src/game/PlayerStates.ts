@@ -1,3 +1,4 @@
+import * as Phaser from 'phaser';
 import { State } from './PlayerStateMachine';
 
 export class IdleState extends State {
