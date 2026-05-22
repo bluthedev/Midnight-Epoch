@@ -1,5 +1,4 @@
-import * as Phaser from 'phaser';
-import { Scene } from 'phaser';
+import { Scene, Input } from 'phaser';
 import { StateMachine } from '../PlayerStateMachine';
 import { IdleState, RunState, JumpState, WallSlideState, DashState } from '../PlayerStates';
 
@@ -114,7 +113,7 @@ export class Game extends Scene
         // Set up input with robust keyboard mock fallback for mobile/Telegram WebApp contexts
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
-            this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+            this.shiftKey = this.input.keyboard.addKey(Input.Keyboard.KeyCodes.SHIFT);
         } else {
             const mockKey = { isDown: false };
             this.cursors = {
